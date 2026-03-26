@@ -953,8 +953,8 @@ class PDFViewerPane:
 		self.canvas.dnd_bind('<<Drop>>', self.on_drop)
 		self.canvas.bind("<Button-3>", self.on_right_click)
 		self.context_menu = tk.Menu(self.master, tearoff=0)
-		self.canvas.bind("<Double-Button-1>", self._toggle_pan_mode)
-		self.canvas.bind("<Motion>", self._on_pan_move)
+		# self.canvas.bind("<Double-Button-1>", self._toggle_pan_mode)
+		# self.canvas.bind("<Motion>", self._on_pan_move)
 		self._pan_mode_active = False
 		self._cursor_start_pos = None
 		self._after_id = None
