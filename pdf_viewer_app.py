@@ -944,9 +944,10 @@ def export_full_text_with_markers(words_a, words_b):
 	Export full revised text with inline change markers.
 	
 	Output format:
-	"The [15% increase → 12% decrease] in revenue [was → is] significant."
+	"The [CHANGED: 15% increase → 12% decrease] in revenue [CHANGED: was → is] significant.
+	[ADDED: "and growing rapidly"] [DELETED: "old clause"] [MOVED: "section 4.1"]"
 	
-	Uses File B (revised) as base, shows changes inline with [old → new] markers.
+	Uses File B (revised) as base, shows changes inline with markers.
 	"""
 	if not words_a or not words_b:
 		return "No text to export. Please load both PDF documents first."
@@ -976,42 +977,53 @@ def export_full_text_with_markers(words_a, words_b):
 			if file_idx == "b":
 				changed_indices_b.add(word_idx)
 	
+	# Track processed change groups to avoid duplicates
+	processed_groups = set()
+	
 	i = 0
 	while i < len(words_b):
 		word_b = words_b[i]
 		
-		# Check if this word is part of a replace/move group
+		# Check if this word is part of a change group
 		if word_b.get("change_group") is not None:
 			change_group = word_b["change_group"]
 			change_type = word_b.get("change_type")
+			
+			# Skip if already processed this group
+			if change_group in processed_groups:
+				i += 1
+				continue
 			
 			# Get all words in this change group
 			group_a = [w for (f, idx, w) in changes_by_group.get(change_group, []) if f == "a"]
 			group_b = [w for (f, idx, w) in changes_by_group.get(change_group, []) if f == "b"]
 			
 			if change_type == "replace" and group_a and group_b:
-				# Show as [old → new]
+				# Show as [CHANGED: old → new]
 				old_text = " ".join(w["text"] for w in sorted(group_a, key=lambda x: words_a.index(x)))
 				new_text = " ".join(w["text"] for w in sorted(group_b, key=lambda x: words_b.index(x)))
-				output.append(f"[{old_text} → {new_text}]")
+				output.append(f"[CHANGED: {old_text} → {new_text}]")
 			elif change_type == "insert":
-				# Just show new text (or with + prefix)
+				# Show as [ADDED: "text"]
 				new_text = " ".join(w["text"] for w in sorted(group_b, key=lambda x: words_b.index(x)))
-				output.append(new_text)
+				output.append(f'[ADDED: "{new_text}"]')
 			elif change_type == "delete":
-				# Deletion - show nothing in revised text (or mark with [-])
-				pass
+				# Show as [DELETED: "text"]
+				old_text = " ".join(w["text"] for w in sorted(group_a, key=lambda x: words_a.index(x)))
+				output.append(f'[DELETED: "{old_text}"]')
 			elif change_type == "move":
-				# Move - just show the text
+				# Show as [MOVED: "text"]
 				new_text = " ".join(w["text"] for w in sorted(group_b, key=lambda x: words_b.index(x)))
-				output.append(new_text)
+				output.append(f'[MOVED: "{new_text}"]')
 			else:
 				# Fallback
 				output.append(word_b["text"])
 			
+			# Mark this group as processed
+			processed_groups.add(change_group)
+			
 			# Skip all words in this group
 			if group_b:
-				# Find the max index in group_b and skip to after it
 				max_idx = max(words_b.index(w) for w in group_b)
 				i = max_idx + 1
 				continue
@@ -1020,7 +1032,7 @@ def export_full_text_with_markers(words_a, words_b):
 			# Unchanged word
 			output.append(word_b["text"])
 		else:
-			# Word without unique_id but not part of a group (shouldn't happen normally)
+			# Word without unique_id but not part of a group
 			output.append(word_b["text"])
 		
 		i += 1
