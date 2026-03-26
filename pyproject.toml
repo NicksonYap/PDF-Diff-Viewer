@@ -16,9 +16,6 @@ dependencies = [
     "pyinstaller-hooks-contrib==2025.8",
     "pymsgbox==2.0.1",
     "pymupdf==1.26.4",
-    "pyobjc-core==11.1",
-    "pyobjc-framework-cocoa==11.1",
-    "pyobjc-framework-quartz==11.1",
     "pyperclip==1.9.0",
     "pyrect==0.2.0",
     "pyscreeze==1.0.1",
@@ -28,4 +25,11 @@ dependencies = [
     "setuptools==80.9.0",
     "stopit==1.1.2",
     "tkinterdnd2==0.4.3",
+]
+
+[dependency-groups]
+dev = [
+    "pyobjc-core==11.1; sys_platform == 'darwin'",
+    "pyobjc-framework-cocoa==11.1; sys_platform == 'darwin'",
+    "pyobjc-framework-quartz==11.1; sys_platform == 'darwin'",
 ]
