@@ -1032,20 +1032,19 @@ def export_changes_with_context(words_a, words_b, context_words=5):
 	"""
 	Export changes with surrounding context.
 	
-	Output format:
+	Clean output format showing each change separately:
 	```
-	...unchanged text before...
-	>>> CHANGE START
-	DELETED: "The quarterly report shows 15% increase"
-	ADDED:   "The quarterly report shows 12% decrease"
-	>>> CHANGE END
-	...unchanged text after...
+	the fee earner. (iv) Where
+	
+	>>> CHANGE
+	- DELETED: "the Client has specifically requested..."
+	+ ADDED:   "we work outside our office on your behalf..."
+	
+	to you at one- half of our hourly rate plus SST.
 	```
 	"""
 	if not words_a or not words_b:
 		return "No text to export. Please load both PDF documents first."
-	
-	output = []
 	
 	# Group words by change_group
 	changes_by_group = defaultdict(list)
@@ -1071,13 +1070,11 @@ def export_changes_with_context(words_a, words_b, context_words=5):
 			if f == "b":
 				changed_indices_b.add(idx)
 	
-	# Process each change group with context
-	processed_changes = set()
+	# Build output
+	output_parts = []
+	last_end_idx = 0
 	
 	for change_group in sorted_groups:
-		if change_group in processed_changes:
-			continue
-		
 		group = changes_by_group[change_group]
 		group_a = [w for (f, idx, w) in group if f == "a"]
 		group_b = [w for (f, idx, w) in group if f == "b"]
@@ -1085,59 +1082,69 @@ def export_changes_with_context(words_a, words_b, context_words=5):
 		if not group_b:
 			continue
 		
-		# Find position in document B
+		# Find position range in document B
 		first_b_idx = min(words_b.index(w) for w in group_b)
+		last_b_idx = max(words_b.index(w) for w in group_b)
 		
-		# Add context before
-		context_start = max(0, first_b_idx - context_words)
+		# Add context before (unchanged text between last change and this one)
+		context_start = max(last_end_idx, first_b_idx - context_words)
 		context_words_before = []
 		for i in range(context_start, first_b_idx):
 			if i not in changed_indices_b:
 				context_words_before.append(words_b[i]["text"])
 		
 		if context_words_before:
-			output.append(" ".join(context_words_before))
-			output.append("")
+			output_parts.append(("text", " ".join(context_words_before)))
 		
 		# Determine change type
-		change_type = group_b[0].get("change_type", "unknown") if group_b else "unknown"
+		change_type = group_b[0].get("change_type", "unknown")
 		
-		output.append(">>> CHANGE START")
+		# Build change block
+		change_lines = [">>> CHANGE"]
 		
 		if change_type == "replace":
 			old_text = " ".join(w["text"] for w in group_a)
 			new_text = " ".join(w["text"] for w in group_b)
-			output.append(f"DELETED: \"{old_text}\"")
-			output.append(f"ADDED:   \"{new_text}\"")
+			change_lines.append(f"- DELETED: \"{old_text}\"")
+			change_lines.append(f"+ ADDED:   \"{new_text}\"")
 		elif change_type == "delete":
 			old_text = " ".join(w["text"] for w in group_a)
-			output.append(f"DELETED: \"{old_text}\"")
+			change_lines.append(f"- DELETED: \"{old_text}\"")
 		elif change_type == "insert":
 			new_text = " ".join(w["text"] for w in group_b)
-			output.append(f"ADDED:   \"{new_text}\"")
+			change_lines.append(f"+ ADDED:   \"{new_text}\"")
 		elif change_type == "move":
-			old_text = " ".join(w["text"] for w in group_a) if group_a else "(from earlier/later in document)"
+			old_text = " ".join(w["text"] for w in group_a) if group_a else "(from elsewhere)"
 			new_text = " ".join(w["text"] for w in group_b)
-			output.append(f"MOVED: \"{old_text}\" → \"{new_text}\"")
+			change_lines.append(f"~ MOVED:   \"{old_text}\" → \"{new_text}\"")
 		
-		output.append(">>> CHANGE END")
-		output.append("")
+		output_parts.append(("change", "\n".join(change_lines)))
 		
-		# Add context after
-		last_b_idx = max(words_b.index(w) for w in group_b)
-		context_end = min(len(words_b), last_b_idx + context_words + 1)
+		last_end_idx = last_b_idx + 1
+	
+	# Add any remaining text after the last change
+	if last_end_idx < len(words_b):
 		context_words_after = []
-		for i in range(last_b_idx + 1, context_end):
+		for i in range(last_end_idx, min(len(words_b), last_end_idx + context_words)):
 			if i not in changed_indices_b:
 				context_words_after.append(words_b[i]["text"])
-		
 		if context_words_after:
-			output.append(" ".join(context_words_after))
-			output.append("")
-		
-		processed_changes.add(change_group)
+			output_parts.append(("text", " ".join(context_words_after)))
 	
-	return "\n".join(output) if output else "No changes found."
+	# Format output
+	if not output_parts:
+		return "No changes found."
+	
+	formatted_output = []
+	for part_type, content in output_parts:
+		if part_type == "text":
+			formatted_output.append(content)
+			formatted_output.append("")
+		elif part_type == "change":
+			formatted_output.append(content)
+			formatted_output.append("")
+	
+	return "\n".join(formatted_output)
 
 
 def export_changes_summary(words_a, words_b):
@@ -1181,6 +1188,91 @@ def export_changes_summary(words_a, words_b):
 		f"  - Replacements: {change_counts.get('replace', 0)}",
 		f"  - Moves: {change_counts.get('move', 0)}",
 	]
+	
+	return "\n".join(lines)
+
+
+def export_substantive_changes(words_a, words_b):
+	"""
+	Export ALL changes (including tiny ones like "a" → "the" or punctuation).
+	
+	No filtering, no clustering - just a clean numbered list of all changes.
+	
+	Output format:
+	```
+	ALL CHANGES
+	===========
+	
+	[1] CHANGED:  "the Client has specifically requested..."
+			→ "we work outside our office..."
+	[2] ADDED: 	  "you at one- half of our hourly rate..."
+	[3] CHANGED:  "urgency."
+			→ "circumstances."
+	[4] DELETED:  "some text that was removed"
+	```
+	"""
+	if not words_a or not words_b:
+		return "No text to export. Please load both PDF documents first."
+	
+	# Group words by change_group
+	changes_by_group = defaultdict(list)
+	for i, word in enumerate(words_b):
+		if word.get("change_group") is not None:
+			changes_by_group[word["change_group"]].append(("b", i, word))
+	
+	for i, word in enumerate(words_a):
+		if word.get("change_group") is not None:
+			changes_by_group[word["change_group"]].append(("a", i, word))
+	
+	if not changes_by_group:
+		return "No changes found."
+	
+	# Sort by position in document B
+	sorted_groups = sorted(changes_by_group.keys(),
+						   key=lambda g: min((idx for f, idx, w in changes_by_group[g] if f == "b"), default=float('inf')))
+	
+	# Build output
+	lines = ["ALL CHANGES", "=" * 13, ""]
+	change_num = 0
+	
+	for change_group in sorted_groups:
+		group = changes_by_group[change_group]
+		group_a = [w for (f, idx, w) in group if f == "a"]
+		group_b = [w for (f, idx, w) in group if f == "b"]
+		
+		if not group_b:
+			continue
+		
+		change_type = group_b[0].get("change_type", "unknown")
+		old_text = " ".join(w["text"] for w in group_a) if group_a else ""
+		new_text = " ".join(w["text"] for w in group_b) if group_b else ""
+		
+		change_num += 1
+		
+		if change_type == "replace":
+			# Both deletion and insertion = CHANGED
+			lines.append(f"CHANGED:  \"{old_text}\"")
+			lines.append(f"\t\t→ \"{new_text}\"")
+			lines.append(f"")
+		elif change_type == "delete":
+			# Only deletion = DELETED
+			lines.append(f"DELETED:  \"{old_text}\"")
+			lines.append(f"")
+		elif change_type == "insert":
+			# Only insertion = ADDED
+			lines.append(f"ADDED:    \"{new_text}\"")
+			lines.append(f"")
+		elif change_type == "move":
+			# Move = MOVED
+			lines.append(f"MOVED:    \"{old_text}\" → \"{new_text}\"")
+			lines.append(f"")
+	
+	if change_num == 0:
+		return "No changes found."
+	
+	lines.append("")
+	lines.append(f"---")
+	lines.append(f"Total changes: {change_num}")
 	
 	return "\n".join(lines)
 
@@ -1333,13 +1425,18 @@ class PDFViewerPane:
 		if self.parent_app.pdf_documents[0] and self.parent_app.pdf_documents[1]:
 			export_menu = tk.Menu(self.context_menu, tearoff=0)
 			export_menu.add_command(
-				label="Full Text with Change Markers",
+				label="Full Text with Markers (for AI)",
 				command=self.copy_full_text_with_markers
 			)
 			export_menu.add_command(
 				label="Changes with Context",
 				command=self.copy_changes_with_context
 			)
+			export_menu.add_command(
+				label="All Changes (Numbered List)",
+				command=self.copy_substantive_changes
+			)
+			export_menu.add_separator()
 			export_menu.add_command(
 				label="Changes Summary",
 				command=self.copy_changes_summary
@@ -1386,6 +1483,16 @@ class PDFViewerPane:
 		text = export_changes_summary(words_a, words_b)
 		if copy_to_clipboard(text):
 			print("Copied changes summary to clipboard.")
+		else:
+			messagebox.showerror("Clipboard Error", "Failed to copy to clipboard.")
+	
+	def copy_substantive_changes(self):
+		"""Copy all changes (numbered list) to clipboard."""
+		words_a = self.parent_app.words_data_list[0]
+		words_b = self.parent_app.words_data_list[1]
+		text = export_substantive_changes(words_a, words_b)
+		if copy_to_clipboard(text):
+			print("Copied all changes (numbered list) to clipboard.")
 		else:
 			messagebox.showerror("Clipboard Error", "Failed to copy to clipboard.")
 	def toggle_light_dark_mode(self):
@@ -1971,6 +2078,7 @@ class PDFViewerApp:
 		self.master.bind('<Control-Shift-M>', lambda event: self.copy_full_text_with_markers())
 		self.master.bind('<Control-Shift-C>', lambda event: self.copy_changes_with_context())
 		self.master.bind('<Control-Shift-S>', lambda event: self.copy_changes_summary())
+		self.master.bind('<Control-Shift-X>', lambda event: self.copy_substantive_changes())
 	def _process_command_line_args(self):
 		"""Processes command-line arguments to load initial PDF files."""
 		if len(sys.argv) > 1:
@@ -2383,6 +2491,17 @@ class PDFViewerApp:
 		if copy_to_clipboard(text):
 			print("Copied changes summary to clipboard.")
 			messagebox.showinfo("Copied!", "Changes summary copied to clipboard.")
+		else:
+			messagebox.showerror("Clipboard Error", "Failed to copy to clipboard.")
+	
+	def copy_substantive_changes(self):
+		"""Copy all changes (numbered list) to clipboard."""
+		words_a = self.words_data_list[0]
+		words_b = self.words_data_list[1]
+		text = export_substantive_changes(words_a, words_b)
+		if copy_to_clipboard(text):
+			print("Copied all changes (numbered list) to clipboard.")
+			messagebox.showinfo("Copied!", "All changes (numbered list) copied to clipboard.")
 		else:
 			messagebox.showerror("Clipboard Error", "Failed to copy to clipboard.")
 	
