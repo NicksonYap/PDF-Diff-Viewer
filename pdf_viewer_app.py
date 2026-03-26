@@ -389,8 +389,8 @@ def align_words_with_difflib(words_data1, words_data2, case_insensitive, ignore_
 	"""
 	Aligns two sequences of words using difflib.SequenceMatcher
 	and assigns common IDs or marks as unique.
-	Modifies words_data1 and words_data2 in place by setting 'unique_id'
-	and 'highlight_color'.
+	Modifies words_data1 and words_data2 in place by setting 'unique_id',
+	'highlight_color', 'change_group', and 'change_type'.
 	Args:
 		words_data1 (list): List of dictionaries for words in document 1.
 		words_data2 (list): List of dictionaries for words in document 2.
@@ -400,16 +400,17 @@ def align_words_with_difflib(words_data1, words_data2, case_insensitive, ignore_
 	a_compare, b_compare = helper_case_quotes(words_data1, words_data2, case_insensitive, ignore_quotes)
 	s = difflib.SequenceMatcher(None, a_compare, b_compare)
 	common_word_id_counter = 0
+	change_group_counter = 0
 	idx1_current = 0
 	idx2_current = 0
-	
+
 	# log=open("outlog.txt","w", encoding="utf8")
-	
-	
-	
+
+
+
 	for tag, i1, i2, j1, j2 in s.get_opcodes():
-		
-		
+
+
 		# sx=" ".join([x["text"] for x in words_data1[i1:i2]])
 		# dx=" ".join([x["text"] for x in words_data2[j1:j2]])
 		#if len(sx)>85: sx=sx[:40]+"..."+sx[-40:]
@@ -419,9 +420,9 @@ def align_words_with_difflib(words_data1, words_data2, case_insensitive, ignore_
 		# except:
 			# traceback.print_exc()
 			# raise
-		
-		
-		
+
+
+
 		if tag == 'equal':
 			for k in range(i2 - i1):
 				common_id = f"common-word-{common_word_id_counter}"
@@ -429,26 +430,41 @@ def align_words_with_difflib(words_data1, words_data2, case_insensitive, ignore_
 				words_data2[idx2_current + k]["unique_id"] = common_id
 				words_data1[idx1_current + k]["highlight_color"] = None
 				words_data2[idx2_current + k]["highlight_color"] = None
+				words_data1[idx1_current + k]["change_group"] = None
+				words_data2[idx2_current + k]["change_group"] = None
+				words_data1[idx1_current + k]["change_type"] = None
+				words_data2[idx2_current + k]["change_type"] = None
 				common_word_id_counter += 1
 			idx1_current += (i2 - i1)
 			idx2_current += (j2 - j1)
-		elif tag == 'delete': 
+		elif tag == 'delete':
 			for k in range(i2 - i1):
 				words_data1[idx1_current + k]["unique_id"] = None
 				words_data1[idx1_current + k]["highlight_color"] = "red"
+				words_data1[idx1_current + k]["change_group"] = change_group_counter
+				words_data1[idx1_current + k]["change_type"] = "delete"
+			change_group_counter += 1
 			idx1_current += (i2 - i1)
-		elif tag == 'insert': 
+		elif tag == 'insert':
 			for k in range(j2 - j1):
 				words_data2[idx2_current + k]["unique_id"] = None
 				words_data2[idx2_current + k]["highlight_color"] = "green"
+				words_data2[idx2_current + k]["change_group"] = change_group_counter
+				words_data2[idx2_current + k]["change_type"] = "insert"
+			change_group_counter += 1
 			idx2_current += (j2 - j1)
-		elif tag == 'replace': 
+		elif tag == 'replace':
 			for k in range(i2 - i1):
 				words_data1[idx1_current + k]["unique_id"] = None
 				words_data1[idx1_current + k]["highlight_color"] = "red"
+				words_data1[idx1_current + k]["change_group"] = change_group_counter
+				words_data1[idx1_current + k]["change_type"] = "replace"
 			for k in range(j2 - j1):
 				words_data2[idx2_current + k]["unique_id"] = None
 				words_data2[idx2_current + k]["highlight_color"] = "green"
+				words_data2[idx2_current + k]["change_group"] = change_group_counter
+				words_data2[idx2_current + k]["change_type"] = "replace"
+			change_group_counter += 1
 			idx1_current += (i2 - i1)
 			idx2_current += (j2 - j1)
 	print(time.time(), "fine align_words_with_difflib")
@@ -823,6 +839,7 @@ def align_words_with_git_diff(words_data1, words_data2, case_insensitive, ignore
 	a_compare, b_compare = helper_case_quotes(words_data1, words_data2, case_insensitive, ignore_quotes)
 	s = GitSequenceMatcher(a_compare, b_compare,temp_dir='.')
 	common_word_id_counter = 0
+	change_group_counter = 0
 	idx1_current = 0
 	idx2_current = 0
 	for tag, i1, i2, j1, j2, is_moved in s.get_opcodes():
@@ -835,6 +852,10 @@ def align_words_with_git_diff(words_data1, words_data2, case_insensitive, ignore
 				words_data2[idx2_current + k]["unique_id"] = common_id
 				words_data1[idx1_current + k]["highlight_color"] = None
 				words_data2[idx2_current + k]["highlight_color"] = None
+				words_data1[idx1_current + k]["change_group"] = None
+				words_data2[idx2_current + k]["change_group"] = None
+				words_data1[idx1_current + k]["change_type"] = None
+				words_data2[idx2_current + k]["change_type"] = None
 				common_word_id_counter += 1
 			idx1_current += (i2 - i1)
 			idx2_current += (j2 - j1)
@@ -842,31 +863,47 @@ def align_words_with_git_diff(words_data1, words_data2, case_insensitive, ignore
 			for k in range(i2 - i1):
 				words_data1[idx1_current + k]["unique_id"] = None
 				words_data1[idx1_current + k]["highlight_color"] = "red"
+				words_data1[idx1_current + k]["change_group"] = change_group_counter
+				words_data1[idx1_current + k]["change_type"] = "delete"
+			change_group_counter += 1
 			idx1_current += (i2 - i1)
 		elif tag == 'insert' and not is_moved:
 			for k in range(j2 - j1):
 				words_data2[idx2_current + k]["unique_id"] = None
 				words_data2[idx2_current + k]["highlight_color"] = "green"
+				words_data2[idx2_current + k]["change_group"] = change_group_counter
+				words_data2[idx2_current + k]["change_type"] = "insert"
+			change_group_counter += 1
 			idx2_current += (j2 - j1)
 		elif tag == 'replace':
 			for k in range(i2 - i1):
 				words_data1[idx1_current + k]["unique_id"] = None
 				words_data1[idx1_current + k]["highlight_color"] = "red"
+				words_data1[idx1_current + k]["change_group"] = change_group_counter
+				words_data1[idx1_current + k]["change_type"] = "replace"
 			for k in range(j2 - j1):
 				words_data2[idx2_current + k]["unique_id"] = None
 				words_data2[idx2_current + k]["highlight_color"] = "green"
+				words_data2[idx2_current + k]["change_group"] = change_group_counter
+				words_data2[idx2_current + k]["change_type"] = "replace"
+			change_group_counter += 1
 			idx1_current += (i2 - i1)
 			idx2_current += (j2 - j1)
-		elif tag == 'insert' and is_moved: 
+		elif tag == 'insert' and is_moved:
 			for k in range(j2 - j1):
-				words_data2[idx2_current + k]["unique_id"] = None 
+				words_data2[idx2_current + k]["unique_id"] = None
 				words_data2[idx2_current + k]["highlight_color"] = "blue"
-				#print(idx2_current + k,words_data2[idx2_current + k]["text"])
+				words_data2[idx2_current + k]["change_group"] = change_group_counter
+				words_data2[idx2_current + k]["change_type"] = "move"
+			change_group_counter += 1
 			idx2_current += (j2 - j1)
 		elif tag == 'delete' and is_moved:
 			for k in range(i2 - i1):
 				words_data1[idx1_current + k]["unique_id"] = None
 				words_data1[idx1_current + k]["highlight_color"] = "blue"
+				words_data1[idx1_current + k]["change_group"] = change_group_counter
+				words_data1[idx1_current + k]["change_type"] = "move"
+			change_group_counter += 1
 			idx1_current += (i2 - i1)
 	return words_data1, words_data2
 
@@ -887,6 +924,268 @@ if is_git_diff_available():
 else:
 	align_words=align_words_with_difflib
 	print("git diff command not available; defaulting to difflib")
+
+
+# ============= Export Functions =============
+
+def copy_to_clipboard(text):
+	"""Copy text to clipboard using klembord."""
+	try:
+		import klembord
+		klembord.set_text(text)
+		return True
+	except Exception as e:
+		print(f"Clipboard error: {e}")
+		return False
+
+
+def export_full_text_with_markers(words_a, words_b):
+	"""
+	Export full revised text with inline change markers.
+	
+	Output format:
+	"The [15% increase → 12% decrease] in revenue [was → is] significant."
+	
+	Uses File B (revised) as base, shows changes inline with [old → new] markers.
+	"""
+	if not words_a or not words_b:
+		return "No text to export. Please load both PDF documents first."
+	
+	output = []
+	
+	# Build map: unique_id → word in File A
+	words_a_by_id = {}
+	for w in words_a:
+		if w.get("unique_id"):
+			words_a_by_id[w["unique_id"]] = w
+	
+	# Group words by change_group to handle replacements together
+	changes_by_group = defaultdict(list)
+	for i, word in enumerate(words_b):
+		if word.get("change_group") is not None:
+			changes_by_group[word["change_group"]].append(("b", i, word))
+	
+	for i, word in enumerate(words_a):
+		if word.get("change_group") is not None:
+			changes_by_group[word["change_group"]].append(("a", i, word))
+	
+	# Track which words in B are part of a change
+	changed_indices_b = set()
+	for group_items in changes_by_group.values():
+		for file_idx, word_idx, word in group_items:
+			if file_idx == "b":
+				changed_indices_b.add(word_idx)
+	
+	i = 0
+	while i < len(words_b):
+		word_b = words_b[i]
+		
+		# Check if this word is part of a replace/move group
+		if word_b.get("change_group") is not None:
+			change_group = word_b["change_group"]
+			change_type = word_b.get("change_type")
+			
+			# Get all words in this change group
+			group_a = [w for (f, idx, w) in changes_by_group.get(change_group, []) if f == "a"]
+			group_b = [w for (f, idx, w) in changes_by_group.get(change_group, []) if f == "b"]
+			
+			if change_type == "replace" and group_a and group_b:
+				# Show as [old → new]
+				old_text = " ".join(w["text"] for w in sorted(group_a, key=lambda x: words_a.index(x)))
+				new_text = " ".join(w["text"] for w in sorted(group_b, key=lambda x: words_b.index(x)))
+				output.append(f"[{old_text} → {new_text}]")
+			elif change_type == "insert":
+				# Just show new text (or with + prefix)
+				new_text = " ".join(w["text"] for w in sorted(group_b, key=lambda x: words_b.index(x)))
+				output.append(new_text)
+			elif change_type == "delete":
+				# Deletion - show nothing in revised text (or mark with [-])
+				pass
+			elif change_type == "move":
+				# Move - just show the text
+				new_text = " ".join(w["text"] for w in sorted(group_b, key=lambda x: words_b.index(x)))
+				output.append(new_text)
+			else:
+				# Fallback
+				output.append(word_b["text"])
+			
+			# Skip all words in this group
+			if group_b:
+				# Find the max index in group_b and skip to after it
+				max_idx = max(words_b.index(w) for w in group_b)
+				i = max_idx + 1
+				continue
+		
+		elif word_b.get("unique_id") and word_b["unique_id"] in words_a_by_id:
+			# Unchanged word
+			output.append(word_b["text"])
+		else:
+			# Word without unique_id but not part of a group (shouldn't happen normally)
+			output.append(word_b["text"])
+		
+		i += 1
+	
+	return " ".join(output) if output else "No changes detected."
+
+
+def export_changes_with_context(words_a, words_b, context_words=5):
+	"""
+	Export changes with surrounding context.
+	
+	Output format:
+	```
+	...unchanged text before...
+	>>> CHANGE START
+	DELETED: "The quarterly report shows 15% increase"
+	ADDED:   "The quarterly report shows 12% decrease"
+	>>> CHANGE END
+	...unchanged text after...
+	```
+	"""
+	if not words_a or not words_b:
+		return "No text to export. Please load both PDF documents first."
+	
+	output = []
+	
+	# Group words by change_group
+	changes_by_group = defaultdict(list)
+	for i, word in enumerate(words_b):
+		if word.get("change_group") is not None:
+			changes_by_group[word["change_group"]].append(("b", i, word))
+	
+	for i, word in enumerate(words_a):
+		if word.get("change_group") is not None:
+			changes_by_group[word["change_group"]].append(("a", i, word))
+	
+	if not changes_by_group:
+		return "No changes found between the documents."
+	
+	# Sort change groups by their first occurrence in document B
+	sorted_groups = sorted(changes_by_group.keys(), 
+						   key=lambda g: min((idx for f, idx, w in changes_by_group[g] if f == "b"), default=float('inf')))
+	
+	# Track which indices in B are part of changes
+	changed_indices_b = set()
+	for group in changes_by_group.values():
+		for f, idx, w in group:
+			if f == "b":
+				changed_indices_b.add(idx)
+	
+	# Process each change group with context
+	processed_changes = set()
+	
+	for change_group in sorted_groups:
+		if change_group in processed_changes:
+			continue
+		
+		group = changes_by_group[change_group]
+		group_a = [w for (f, idx, w) in group if f == "a"]
+		group_b = [w for (f, idx, w) in group if f == "b"]
+		
+		if not group_b:
+			continue
+		
+		# Find position in document B
+		first_b_idx = min(words_b.index(w) for w in group_b)
+		
+		# Add context before
+		context_start = max(0, first_b_idx - context_words)
+		context_words_before = []
+		for i in range(context_start, first_b_idx):
+			if i not in changed_indices_b:
+				context_words_before.append(words_b[i]["text"])
+		
+		if context_words_before:
+			output.append(" ".join(context_words_before))
+			output.append("")
+		
+		# Determine change type
+		change_type = group_b[0].get("change_type", "unknown") if group_b else "unknown"
+		
+		output.append(">>> CHANGE START")
+		
+		if change_type == "replace":
+			old_text = " ".join(w["text"] for w in group_a)
+			new_text = " ".join(w["text"] for w in group_b)
+			output.append(f"DELETED: \"{old_text}\"")
+			output.append(f"ADDED:   \"{new_text}\"")
+		elif change_type == "delete":
+			old_text = " ".join(w["text"] for w in group_a)
+			output.append(f"DELETED: \"{old_text}\"")
+		elif change_type == "insert":
+			new_text = " ".join(w["text"] for w in group_b)
+			output.append(f"ADDED:   \"{new_text}\"")
+		elif change_type == "move":
+			old_text = " ".join(w["text"] for w in group_a) if group_a else "(from earlier/later in document)"
+			new_text = " ".join(w["text"] for w in group_b)
+			output.append(f"MOVED: \"{old_text}\" → \"{new_text}\"")
+		
+		output.append(">>> CHANGE END")
+		output.append("")
+		
+		# Add context after
+		last_b_idx = max(words_b.index(w) for w in group_b)
+		context_end = min(len(words_b), last_b_idx + context_words + 1)
+		context_words_after = []
+		for i in range(last_b_idx + 1, context_end):
+			if i not in changed_indices_b:
+				context_words_after.append(words_b[i]["text"])
+		
+		if context_words_after:
+			output.append(" ".join(context_words_after))
+			output.append("")
+		
+		processed_changes.add(change_group)
+	
+	return "\n".join(output) if output else "No changes found."
+
+
+def export_changes_summary(words_a, words_b):
+	"""
+	Export a summary of all changes.
+	
+	Output format:
+	```
+	PDF Diff Summary
+	================
+	Total changes: 23
+	  - Deletions: 12
+	  - Insertions: 8
+	  - Replacements: 3
+	  - Moves: 0
+	```
+	"""
+	if not words_a or not words_b:
+		return "No text to export. Please load both PDF documents first."
+	
+	# Count changes by type
+	change_counts = defaultdict(int)
+	seen_groups = set()
+	
+	for word in words_a + words_b:
+		if word.get("change_group") is not None:
+			group = word["change_group"]
+			if group not in seen_groups:
+				change_type = word.get("change_type", "unknown")
+				change_counts[change_type] += 1
+				seen_groups.add(group)
+	
+	total = sum(change_counts.values())
+	
+	lines = [
+		"PDF Diff Summary",
+		"================",
+		f"Total changes: {total}",
+		f"  - Deletions: {change_counts.get('delete', 0)}",
+		f"  - Insertions: {change_counts.get('insert', 0)}",
+		f"  - Replacements: {change_counts.get('replace', 0)}",
+		f"  - Moves: {change_counts.get('move', 0)}",
+	]
+	
+	return "\n".join(lines)
+
+
+# ============= End Export Functions =============
 
 
 
@@ -1018,7 +1317,7 @@ class PDFViewerPane:
 		self._after_id = self.master.after(400, self._snap_back_timer)
 	def on_right_click(self, event):
 		"""Displays a context menu on right-click."""
-		self.context_menu.delete(0, tk.END) 
+		self.context_menu.delete(0, tk.END)
 		if self.pdf_document and not self.pdf_document.is_closed:
 			self.context_menu.add_command(
 				label="Save PDF with Annotations...",
@@ -1028,7 +1327,29 @@ class PDFViewerPane:
 				label="Toggle light/dark mode",
 				command=self.toggle_light_dark_mode
 			)
-			self.context_menu.add_separator() 
+			self.context_menu.add_separator()
+		
+		# Add export options (available when both documents are loaded)
+		if self.parent_app.pdf_documents[0] and self.parent_app.pdf_documents[1]:
+			export_menu = tk.Menu(self.context_menu, tearoff=0)
+			export_menu.add_command(
+				label="Full Text with Change Markers",
+				command=self.copy_full_text_with_markers
+			)
+			export_menu.add_command(
+				label="Changes with Context",
+				command=self.copy_changes_with_context
+			)
+			export_menu.add_command(
+				label="Changes Summary",
+				command=self.copy_changes_summary
+			)
+			self.context_menu.add_cascade(
+				label="Copy Changes",
+				menu=export_menu
+			)
+			self.context_menu.add_separator()
+		
 		self.context_menu.add_command(
 			label="Paste from Clipboard",
 			command=self.paste_from_clipboard_action
@@ -1037,6 +1358,36 @@ class PDFViewerPane:
 			self.context_menu.tk_popup(event.x_root, event.y_root)
 		finally:
 			self.context_menu.grab_release()
+	
+	def copy_full_text_with_markers(self):
+		"""Copy full text with inline change markers to clipboard."""
+		words_a = self.parent_app.words_data_list[0]
+		words_b = self.parent_app.words_data_list[1]
+		text = export_full_text_with_markers(words_a, words_b)
+		if copy_to_clipboard(text):
+			print("Copied full text with markers to clipboard.")
+		else:
+			messagebox.showerror("Clipboard Error", "Failed to copy to clipboard.")
+	
+	def copy_changes_with_context(self):
+		"""Copy changes with surrounding context to clipboard."""
+		words_a = self.parent_app.words_data_list[0]
+		words_b = self.parent_app.words_data_list[1]
+		text = export_changes_with_context(words_a, words_b, context_words=5)
+		if copy_to_clipboard(text):
+			print("Copied changes with context to clipboard.")
+		else:
+			messagebox.showerror("Clipboard Error", "Failed to copy to clipboard.")
+	
+	def copy_changes_summary(self):
+		"""Copy changes summary to clipboard."""
+		words_a = self.parent_app.words_data_list[0]
+		words_b = self.parent_app.words_data_list[1]
+		text = export_changes_summary(words_a, words_b)
+		if copy_to_clipboard(text):
+			print("Copied changes summary to clipboard.")
+		else:
+			messagebox.showerror("Clipboard Error", "Failed to copy to clipboard.")
 	def toggle_light_dark_mode(self):
 		"""Toggles the blend mode of PDFComparer highlights between Multiply and Exclusion."""
 		if not self.pdf_document or self.pdf_document.is_closed:
@@ -1616,6 +1967,10 @@ class PDFViewerApp:
 		self.master.bind('P', lambda event: self.go_to_prev_change())
 		self.master.bind('n', lambda event: self.go_to_next_change())
 		self.master.bind('N', lambda event: self.go_to_next_change())
+		# Keyboard shortcuts for export functions
+		self.master.bind('<Control-Shift-M>', lambda event: self.copy_full_text_with_markers())
+		self.master.bind('<Control-Shift-C>', lambda event: self.copy_changes_with_context())
+		self.master.bind('<Control-Shift-S>', lambda event: self.copy_changes_summary())
 	def _process_command_line_args(self):
 		"""Processes command-line arguments to load initial PDF files."""
 		if len(sys.argv) > 1:
@@ -1997,6 +2352,40 @@ class PDFViewerApp:
 			self.sync_scroll(target_pane)
 		else:
 			print("No previous change found or all changes are visible.")
+	
+	def copy_full_text_with_markers(self):
+		"""Copy full text with inline change markers to clipboard."""
+		words_a = self.words_data_list[0]
+		words_b = self.words_data_list[1]
+		text = export_full_text_with_markers(words_a, words_b)
+		if copy_to_clipboard(text):
+			print("Copied full text with markers to clipboard.")
+			messagebox.showinfo("Copied!", "Full text with change markers copied to clipboard.")
+		else:
+			messagebox.showerror("Clipboard Error", "Failed to copy to clipboard.")
+	
+	def copy_changes_with_context(self):
+		"""Copy changes with surrounding context to clipboard."""
+		words_a = self.words_data_list[0]
+		words_b = self.words_data_list[1]
+		text = export_changes_with_context(words_a, words_b, context_words=5)
+		if copy_to_clipboard(text):
+			print("Copied changes with context to clipboard.")
+			messagebox.showinfo("Copied!", "Changes with context copied to clipboard.")
+		else:
+			messagebox.showerror("Clipboard Error", "Failed to copy to clipboard.")
+	
+	def copy_changes_summary(self):
+		"""Copy changes summary to clipboard."""
+		words_a = self.words_data_list[0]
+		words_b = self.words_data_list[1]
+		text = export_changes_summary(words_a, words_b)
+		if copy_to_clipboard(text):
+			print("Copied changes summary to clipboard.")
+			messagebox.showinfo("Copied!", "Changes summary copied to clipboard.")
+		else:
+			messagebox.showerror("Clipboard Error", "Failed to copy to clipboard.")
+	
 	def on_closing(self):
 		"""Handles the application closing event, ensuring PDFs are properly closed and temp files deleted."""
 		print("PDFViewerApp: Closing application.")
