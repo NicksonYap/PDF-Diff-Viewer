@@ -1355,70 +1355,7 @@ class PDFViewerPane:
 		self.canvas.drop_target_register(DND_FILES)
 		self.canvas.dnd_bind('<<Drop>>', self.on_drop)
 		self.canvas.bind("<Button-3>", self.on_right_click)
-		self.context_menu = tk.Menu(self.master, tearoff=0)
-		self.canvas.bind("<Double-Button-1>", self._toggle_pan_mode)
-		self.canvas.bind("<Motion>", self._on_pan_move)
-		self._pan_mode_active = False
-		self._cursor_start_pos = None
-		self._after_id = None
-	def _toggle_pan_mode(self, event):
-		"""Toggles the panning mode on or off."""
-		if self._pan_mode_active:
-			self._deactivate_pan_mode()
-		else:
-			self._activate_pan_mode()
-	def _activate_pan_mode(self):
-		"""Activates the clickless pan mode and starts the cursor snap-back timer."""
-		if not PYAUTOGUI_AVAILABLE:
-			print("Cannot activate pan mode: pyautogui is not installed.")
-			return
-			
-		self._pan_mode_active = True
-		self.canvas.config(cursor="hand2")
-		self._cursor_start_pos = pyautogui.position()
-		
-		# Set the initial scan mark
-		canvas_x = self.canvas.winfo_pointerx() - self.canvas.winfo_rootx()
-		canvas_y = self.canvas.winfo_pointery() - self.canvas.winfo_rooty()
-		self.canvas.scan_mark(canvas_x, canvas_y)
-
-		print(f"Pan mode activated. Cursor locked at {self._cursor_start_pos}")
-		self._snap_back_timer()
-	def _deactivate_pan_mode(self):
-		"""Deactivates the clickless pan mode."""
-		self._pan_mode_active = False
-		self.canvas.config(cursor="")
-		if self._after_id:
-			self.master.after_cancel(self._after_id)
-			self._after_id = None
-		print("Pan mode deactivated.")
-	def _on_pan_move(self, event):#with timer continuosly postponed
-		"""Drags the canvas view, as the mouse moves and without click, if pan mode is active."""
-		if self._pan_mode_active:
-			#print("event: ",event.x, event.y, "self._cursor_start_pos.x: ",self._cursor_start_pos.x,self.canvas.winfo_rootx())
-			#self.canvas.scan_dragto(event.x, event.y, gain=1)
-			self.canvas.scan_dragto(self._cursor_start_pos.x- self.canvas.winfo_rootx(), event.y, gain=3)#instead ov event.x we stick to original x (where the user double clicked)
-			self.schedule_render_visible_pages() 
-			if self.ignore_scroll_events_counter == 0:
-				self.canvas.event_generate("<<UserCanvasScrolled>>")
-			if self._after_id:
-				self.master.after_cancel(self._after_id)
-				self._after_id = None
-				self._after_id = self.master.after(40, self._snap_back_timer)
-	def _snap_back_timer(self):
-		"""Periodically snaps the cursor back and resets the scan mark."""
-		if not self._pan_mode_active:
-			return
-		# Move cursor back to the starting point
-		pyautogui.moveTo(self._cursor_start_pos.x, self._cursor_start_pos.y)
-		# Immediately after moving, we must reset the canvas's scan mark
-		# to this position to prevent the canvas from jumping.
-		canvas_x = self._cursor_start_pos.x - self.canvas.winfo_rootx()
-		canvas_y = self._cursor_start_pos.y - self.canvas.winfo_rooty()
-		self.canvas.scan_mark(canvas_x, canvas_y)
-
-		# Schedule the next snap-back
-		self._after_id = self.master.after(400, self._snap_back_timer)
+		self.context_menu = tk.Menu(self.canvas, tearoff=0)
 	def on_right_click(self, event):
 		"""Displays a context menu on right-click."""
 		self.context_menu.delete(0, tk.END)
