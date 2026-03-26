@@ -2024,6 +2024,8 @@ class PDFViewerApp:
 		self.open_button_1.pack(side=tk.LEFT, padx=5)
 		self.open_button_2 = ttk.Button(control_frame, text="Open (R)", command=lambda: self.open_pdf(1))
 		self.open_button_2.pack(side=tk.LEFT, padx=5)
+		self.swap_button = ttk.Button(control_frame, text="Swap L ↔ R", command=self.swap_panes)
+		self.swap_button.pack(side=tk.LEFT, padx=5)
 		ttk.Label(control_frame, text="Zoom (L):").pack(side=tk.LEFT, padx=(15, 0))
 		self.zoom_scale_1 = ttk.Scale(control_frame, from_=0.33, to_=3.0, orient=tk.HORIZONTAL, length=100)
 		self.zoom_scale_1.set(1.0)
@@ -2089,6 +2091,81 @@ class PDFViewerApp:
 		name1 = self.pane1.file_name if self.pane1.file_name else "Panel 1"
 		name2 = self.pane2.file_name if self.pane2.file_name else "Panel 2"
 		self.master.title(f"PDF Diff Viewer - {name1} vs {name2}")
+	def swap_panes(self):
+		"""Swaps the left and right PDF documents, including file names, zoom levels, and re-runs comparison."""
+		doc1_loaded = self.pdf_documents[0] and not self.pdf_documents[0].is_closed if self.pdf_documents[0] else False
+		doc2_loaded = self.pdf_documents[1] and not self.pdf_documents[1].is_closed if self.pdf_documents[1] else False
+		
+		if not (doc1_loaded and doc2_loaded):
+			messagebox.showinfo("Swap Panes", "Both PDF documents must be loaded to swap.")
+			return
+		
+		print("Swapping left and right panes...")
+		
+		# Store current state of pane1
+		doc1 = self.pdf_documents[0]
+		words1 = self.words_data_list[0]
+		name1 = self.pane1.file_name
+		zoom1 = self.pane1.zoom_level
+		temp_path1 = self.pane1.temp_pdf_path
+		sorted1 = self.pane1.sorted
+		
+		# Store current state of pane2
+		doc2 = self.pdf_documents[1]
+		words2 = self.words_data_list[1]
+		name2 = self.pane2.file_name
+		zoom2 = self.pane2.zoom_level
+		temp_path2 = self.pane2.temp_pdf_path
+		sorted2 = self.pane2.sorted
+		
+		# Swap file names
+		self.pane1.file_name = name2
+		self.pane2.file_name = name1
+		
+		# Swap temp paths
+		self.pane1.temp_pdf_path = temp_path2
+		self.pane2.temp_pdf_path = temp_path1
+		
+		# Swap sorted references
+		self.pane1.sorted = sorted2
+		self.pane2.sorted = sorted1
+		
+		# Swap documents and words data
+		self.pdf_documents[0], self.pdf_documents[1] = doc2, doc1
+		self.words_data_list[0], self.words_data_list[1] = words2, words1
+		
+		# Swap pane internal references
+		self.pane1.pdf_document = doc2
+		self.pane2.pdf_document = doc1
+		self.pane1.words_data = words2
+		self.pane2.words_data = words1
+		
+		# Swap zoom levels (without triggering sync)
+		self.pane1.zoom_level = zoom2
+		self.pane2.zoom_level = zoom1
+		
+		# Clear and re-render both panes
+		self.pane1._clear_all_rendered_pages()
+		self.pane2._clear_all_rendered_pages()
+		self.pane1.calculate_document_layout()
+		self.pane2.calculate_document_layout()
+		self.pane1.render_visible_pages()
+		self.pane2.render_visible_pages()
+		
+		# Update zoom labels
+		self.update_zoom_label('left', self.pane1.zoom_level)
+		self.update_zoom_label('right', self.pane2.zoom_level)
+		
+		# Update window title
+		self.update_window_title()
+		
+		# Sync scroll to current active pane
+		if self.current_active_pane:
+			self.sync_scroll(self.current_active_pane)
+		else:
+			self.sync_scroll(self.pane1)
+		
+		print("Panes swapped successfully.")
 	def set_active_pane(self, pane):
 		"""Sets the currently active pane (the one with keyboard focus)."""
 		self.current_active_pane = pane
