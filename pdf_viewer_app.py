@@ -2024,6 +2024,8 @@ class PDFViewerApp:
 		self.open_button_1.pack(side=tk.LEFT, padx=5)
 		self.open_button_2 = ttk.Button(control_frame, text="Open (R)", command=lambda: self.open_pdf(1))
 		self.open_button_2.pack(side=tk.LEFT, padx=5)
+		self.swap_button = ttk.Button(control_frame, text="⇄ Swap Sides", command=self.swap_documents)
+		self.swap_button.pack(side=tk.LEFT, padx=(5, 15))
 		ttk.Label(control_frame, text="Zoom (L):").pack(side=tk.LEFT, padx=(15, 0))
 		self.zoom_scale_1 = ttk.Scale(control_frame, from_=0.33, to_=3.0, orient=tk.HORIZONTAL, length=100)
 		self.zoom_scale_1.set(1.0)
@@ -2076,6 +2078,8 @@ class PDFViewerApp:
 		self.master.bind('<Control-Shift-M>', lambda event: self.copy_full_text_with_markers())
 		self.master.bind('<Control-Shift-X>', lambda event: self.copy_substantive_changes())
 		self.master.bind('<Control-Shift-S>', lambda event: self.copy_changes_summary())
+		# Keyboard shortcut for swap
+		self.master.bind('<Control-Shift-L>', lambda event: self.swap_documents())
 	def _process_command_line_args(self):
 		"""Processes command-line arguments to load initial PDF files."""
 		if len(sys.argv) > 1:
@@ -2225,7 +2229,56 @@ class PDFViewerApp:
 				self.sync_scroll(self.pane1) 
 		else:
 			print("Waiting for both documents to be ready for comparison.")
-		self.update_ui_state() 
+		self.update_ui_state()
+	
+	def swap_documents(self):
+		"""
+		Swaps the left and right PDF documents, re-runs the comparison, and updates the UI.
+		This effectively reverses the diff perspective (deletions become insertions and vice versa).
+		"""
+		doc1_ready = self.pdf_documents[0] and not self.pdf_documents[0].is_closed if self.pdf_documents[0] else False
+		doc2_ready = self.pdf_documents[1] and not self.pdf_documents[1].is_closed if self.pdf_documents[1] else False
+		
+		if not (doc1_ready and doc2_ready):
+			messagebox.showinfo("Swap Documents", "Both PDF documents must be loaded to swap.")
+			return
+		
+		print("Swapping left and right documents...")
+		
+		# Swap the PDF document references
+		self.pdf_documents[0], self.pdf_documents[1] = self.pdf_documents[1], self.pdf_documents[0]
+		
+		# Swap the words data references
+		self.words_data_list[0], self.words_data_list[1] = self.words_data_list[1], self.words_data_list[0]
+		
+		# Swap the pane references
+		self.pane1, self.pane2 = self.pane2, self.pane1
+		
+		# Swap pane IDs to match their new positions
+		self.pane1.pane_id = 'left'
+		self.pane2.pane_id = 'right'
+		
+		# Swap zoom controls
+		self.pane1.canvas.bind("<FocusIn>", lambda e: self.set_active_pane(self.pane1))
+		self.pane2.canvas.bind("<FocusIn>", lambda e: self.set_active_pane(self.pane2))
+		self.zoom_scale_1.config(command=self.pane1.set_zoom_from_scale_widget)
+		self.zoom_scale_2.config(command=self.pane2.set_zoom_from_scale_widget)
+		
+		# Swap zoom labels
+		self.zoom_percent_label_1, self.zoom_percent_label_2 = self.zoom_percent_label_2, self.zoom_percent_label_1
+		
+		# Update active pane reference if needed
+		if self.current_active_pane:
+			self.current_active_pane = self.pane1 if self.current_active_pane.pane_id == 'left' else self.pane2
+		
+		# Re-run the comparison with swapped documents
+		self.perform_comparison_if_ready()
+		
+		# Update window title
+		self.update_window_title()
+		
+		print("Documents swapped successfully.")
+	
 	def on_pane_scrolled(self, event, source_pane):
 		"""Callback for when a user scrolls one of the PDF panes."""
 		if self.sync_scroll_enabled.get() and source_pane.pdf_document and not source_pane.pdf_document.is_closed:
