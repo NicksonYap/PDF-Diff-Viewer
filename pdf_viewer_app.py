@@ -2104,7 +2104,6 @@ class PDFViewerApp:
 		
 		# Store current state of pane1
 		doc1 = self.pdf_documents[0]
-		words1 = self.words_data_list[0]
 		name1 = self.pane1.file_name
 		zoom1 = self.pane1.zoom_level
 		temp_path1 = self.pane1.temp_pdf_path
@@ -2112,7 +2111,6 @@ class PDFViewerApp:
 		
 		# Store current state of pane2
 		doc2 = self.pdf_documents[1]
-		words2 = self.words_data_list[1]
 		name2 = self.pane2.file_name
 		zoom2 = self.pane2.zoom_level
 		temp_path2 = self.pane2.temp_pdf_path
@@ -2130,19 +2128,59 @@ class PDFViewerApp:
 		self.pane1.sorted = sorted2
 		self.pane2.sorted = sorted1
 		
-		# Swap documents and words data
+		# Swap documents
 		self.pdf_documents[0], self.pdf_documents[1] = doc2, doc1
-		self.words_data_list[0], self.words_data_list[1] = words2, words1
 		
-		# Swap pane internal references
+		# Swap pane internal document references
 		self.pane1.pdf_document = doc2
 		self.pane2.pdf_document = doc1
-		self.pane1.words_data = words2
-		self.pane2.words_data = words1
 		
 		# Swap zoom levels (without triggering sync)
 		self.pane1.zoom_level = zoom2
 		self.pane2.zoom_level = zoom1
+		
+		# Clear annotations from both documents
+		for page_num in range(doc1.page_count):
+			page = doc1.load_page(page_num)
+			annots_to_delete = [
+				annot for annot in page.annots()
+				if annot.type[0] == fitz.PDF_ANNOT_HIGHLIGHT and annot.info.get("title") == "PDFComparer"
+			]
+			for annot in annots_to_delete:
+				try:
+					page.delete_annot(annot)
+				except Exception as e:
+					print(f"Error deleting annotation on doc1 page {page_num}: {e}")
+		
+		for page_num in range(doc2.page_count):
+			page = doc2.load_page(page_num)
+			annots_to_delete = [
+				annot for annot in page.annots()
+				if annot.type[0] == fitz.PDF_ANNOT_HIGHLIGHT and annot.info.get("title") == "PDFComparer"
+			]
+			for annot in annots_to_delete:
+				try:
+					page.delete_annot(annot)
+				except Exception as e:
+					print(f"Error deleting annotation on doc2 page {page_num}: {e}")
+		
+		# Re-run comparison with swapped documents (now doc2 is left, doc1 is right)
+		print("Re-running comparison after swap...")
+		words2_copy = [dict(w) for w in self.words_data_list[1]] if self.words_data_list[1] else []
+		words1_copy = [dict(w) for w in self.words_data_list[0]] if self.words_data_list[0] else []
+		self.words_data_list[0], self.words_data_list[1] = align_words(
+			words2_copy, words1_copy,
+			self.case_insensitive.get(),
+			self.ignore_quotes.get(),
+		)
+		
+		# Update pane words_data with new comparison results
+		self.pane1.words_data = self.words_data_list[0]
+		self.pane2.words_data = self.words_data_list[1]
+		
+		# Apply new annotations based on swapped comparison
+		apply_annotations_to_pdf_pages(self.pdf_documents[0], self.pane1.words_data)
+		apply_annotations_to_pdf_pages(self.pdf_documents[1], self.pane2.words_data)
 		
 		# Clear and re-render both panes
 		self.pane1._clear_all_rendered_pages()
@@ -2165,7 +2203,7 @@ class PDFViewerApp:
 		else:
 			self.sync_scroll(self.pane1)
 		
-		print("Panes swapped successfully.")
+		print("Panes swapped successfully with diff recalculated.")
 	def set_active_pane(self, pane):
 		"""Sets the currently active pane (the one with keyboard focus)."""
 		self.current_active_pane = pane
