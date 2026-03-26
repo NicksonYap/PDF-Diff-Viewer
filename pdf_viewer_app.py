@@ -1437,15 +1437,11 @@ class PDFViewerPane:
 		if self.parent_app.pdf_documents[0] and self.parent_app.pdf_documents[1]:
 			export_menu = tk.Menu(self.context_menu, tearoff=0)
 			export_menu.add_command(
-				label="Full Text with Markers (for AI)",
+				label="Full Text with Markers",
 				command=self.copy_full_text_with_markers
 			)
 			export_menu.add_command(
-				label="Changes with Context",
-				command=self.copy_changes_with_context
-			)
-			export_menu.add_command(
-				label="All Changes (Numbered List)",
+				label="All Changes",
 				command=self.copy_substantive_changes
 			)
 			export_menu.add_separator()
@@ -1475,16 +1471,6 @@ class PDFViewerPane:
 		text = export_full_text_with_markers(words_a, words_b)
 		if copy_to_clipboard(text):
 			print("Copied full text with markers to clipboard.")
-		else:
-			messagebox.showerror("Clipboard Error", "Failed to copy to clipboard.")
-	
-	def copy_changes_with_context(self):
-		"""Copy changes with surrounding context to clipboard."""
-		words_a = self.parent_app.words_data_list[0]
-		words_b = self.parent_app.words_data_list[1]
-		text = export_changes_with_context(words_a, words_b, context_words=5)
-		if copy_to_clipboard(text):
-			print("Copied changes with context to clipboard.")
 		else:
 			messagebox.showerror("Clipboard Error", "Failed to copy to clipboard.")
 	
@@ -2088,9 +2074,8 @@ class PDFViewerApp:
 		self.master.bind('N', lambda event: self.go_to_next_change())
 		# Keyboard shortcuts for export functions
 		self.master.bind('<Control-Shift-M>', lambda event: self.copy_full_text_with_markers())
-		self.master.bind('<Control-Shift-C>', lambda event: self.copy_changes_with_context())
-		self.master.bind('<Control-Shift-S>', lambda event: self.copy_changes_summary())
 		self.master.bind('<Control-Shift-X>', lambda event: self.copy_substantive_changes())
+		self.master.bind('<Control-Shift-S>', lambda event: self.copy_changes_summary())
 	def _process_command_line_args(self):
 		"""Processes command-line arguments to load initial PDF files."""
 		if len(sys.argv) > 1:
@@ -2481,17 +2466,6 @@ class PDFViewerApp:
 		if copy_to_clipboard(text):
 			print("Copied full text with markers to clipboard.")
 			messagebox.showinfo("Copied!", "Full text with change markers copied to clipboard.")
-		else:
-			messagebox.showerror("Clipboard Error", "Failed to copy to clipboard.")
-	
-	def copy_changes_with_context(self):
-		"""Copy changes with surrounding context to clipboard."""
-		words_a = self.words_data_list[0]
-		words_b = self.words_data_list[1]
-		text = export_changes_with_context(words_a, words_b, context_words=5)
-		if copy_to_clipboard(text):
-			print("Copied changes with context to clipboard.")
-			messagebox.showinfo("Copied!", "Changes with context copied to clipboard.")
 		else:
 			messagebox.showerror("Clipboard Error", "Failed to copy to clipboard.")
 	
